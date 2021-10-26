@@ -40,7 +40,7 @@ func main() {
 
 ## Jet streams
 
-Single upstream with multiple downstream time based data stream (Broadcast / hot stream).
+Time based single topic data stream with a single upstream and multiple downstream (Broadcast / hot stream).
 
 ```go
 package main
