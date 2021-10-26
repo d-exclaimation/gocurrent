@@ -14,7 +14,15 @@ import (
 )
 
 // Future is a data structure to represent suspended / deferred value
-// while also adding additional utilities to work with that value
+// while also adding additional utilities to work with that value.
+//
+// Example:
+//
+//  fut0 := future.Async(func() interface{} {
+//      time.Sleep(10 * time.Second)
+//      return 10, nil
+//  })
+//
 type Future struct {
 	// value is the internal wrapped value inside the Future
 	value Any
@@ -92,7 +100,6 @@ func (f *Future) behavior() {
 func (f *Future) receive() {
 	for {
 		select {
-
 		case res := <-f._Delivery:
 			res.Match(result.Case{
 				Success: func(value interface{}) {
