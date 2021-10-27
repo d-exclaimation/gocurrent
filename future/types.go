@@ -24,9 +24,3 @@ const (
 	// Failure status show function has finished executing and return an unsuccessful value
 	Failure DeliveryStatus = "future-failure"
 )
-
-// Any is just anything
-type Any interface{}
-
-// Function is any function that return a value and error (following go's standard)
-type Function func() (Any, error)

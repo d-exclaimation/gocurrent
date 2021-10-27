@@ -10,6 +10,7 @@ package future
 
 import (
 	"github.com/d-exclaimation/gocurrent/result"
+	. "github.com/d-exclaimation/gocurrent/types"
 )
 
 // Promise is a data structure to create dynamically finished Future

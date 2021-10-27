@@ -8,41 +8,25 @@
 package main
 
 import (
+	"github.com/d-exclaimation/gocurrent/future"
 	"github.com/d-exclaimation/gocurrent/streaming/jet"
+	. "github.com/d-exclaimation/gocurrent/types"
 	"log"
 	"time"
 )
 
 func main() {
-	jt := jet.New()
+	fut0 := future.Async(func() (Any, error) {
+		time.Sleep(time.Second * 5)
+		return 1, nil
+	})
 
-	doneAll := make(chan bool)
-	go func() {
-		done1, _ := jt.OnSnapshot(func(i interface{}) {
-			log.Printf("[1]: %v\n", i)
-		})
+	fut1 := future.Map(fut0, func(any Any) Any {
+		return any.(int) + 1
+	})
 
-		done2, _ := jt.OnSnapshot(func(i interface{}) {
-			log.Printf("[2]: %v\n", i)
-		})
+	jt := jet.Future(fut1)
 
-		f1 := <-done1
-		f2 := <-done2
-
-		doneAll <- f1 && f2
-	}()
-
-	go func() {
-		for jt.Next() {
-			log.Printf("[3]: %v\n", jt.Value())
-		}
-	}()
-
-	for i := 0; i < 5; i++ {
-		time.Sleep(1 * time.Second)
-		jt.Up(i)
-	}
-	jt.Close()
-
-	<-doneAll
+	<-jt.Done()
+	log.Println(jt.Await())
 }

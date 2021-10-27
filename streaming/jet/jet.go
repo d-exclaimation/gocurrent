@@ -8,7 +8,13 @@
 
 package jet
 
-import "errors"
+import (
+	"context"
+	"errors"
+	"github.com/d-exclaimation/gocurrent/streaming/common"
+	. "github.com/d-exclaimation/gocurrent/types"
+	"log"
+)
 
 // Jet is a data structure for streaming like behavior with a singular upstream and multiple consumer channel.
 //
@@ -20,7 +26,7 @@ import "errors"
 // with multiple utilities for handling time-based value.
 //
 //  jt := jet.New()
-//  jt.OnSnapshot(func(value interface{}) {
+//  jt.On(func(value Any) {
 //      log.Println(value)
 //  })
 //
@@ -35,31 +41,31 @@ import "errors"
 // Also handle closing all channels and deallocating resources.
 type Jet struct {
 	// _upstream is the upstream channel to push data into the Jet
-	_upstream chan interface{}
+	_upstream chan Any
 
 	// _register is the channel to concurrently set a new consumer channel
-	_register chan chan interface{}
+	_register chan chan Any
 
 	// _unregister is the channel to concurrently unset and close a consumer channel
-	_unregister chan Consumer
+	_unregister chan common.Consumer
 
 	// _await is the channel for sending single use channel
-	_await chan chan interface{}
+	_await chan chan Any
 
-	// _stop is the shutdown channel
-	_stop chan bool
+	// _acid is the shutdown channel
+	_acid chan Signal
 
-	// cache is the preserved latest value
-	cache interface{}
+	// latestSnapshot is the preserved latest value
+	latestSnapshot Any
 
-	// err is the accumulated errors
-	err error
+	// accumulatedError is the accumulated errors
+	accumulatedError error
 
 	// downstream is the map state for store long-running consumer to producer channel pair
-	downstream Downstreams
+	downstream common.Downstreams
 
 	// waiters is the map state for store single use channel
-	waiters OneTimers
+	waiters common.Downstreams
 
 	// isDone is the state to indicate whether Jet finished
 	isDone bool
@@ -68,16 +74,16 @@ type Jet struct {
 // New instantiate a new Jet and run the behavior in a separate goroutine.
 func New() *Jet {
 	j := &Jet{
-		_upstream:   make(chan interface{}),
-		_register:   make(chan chan interface{}),
-		_unregister: make(chan Consumer),
-		_await:      make(chan chan interface{}),
-		_stop:       make(chan bool),
-		cache:       nil,
-		err:         nil,
-		downstream:  make(Downstreams),
-		waiters:     make(OneTimers),
-		isDone:      false,
+		_upstream:        make(chan Any),
+		_register:        make(chan chan Any),
+		_unregister:      make(chan common.Consumer),
+		_await:           make(chan chan Any),
+		_acid:            make(chan Signal),
+		latestSnapshot:   nil,
+		accumulatedError: nil,
+		downstream:       make(common.Downstreams),
+		waiters:          make(common.Downstreams),
+		isDone:           false,
 	}
 	j.behavior()
 	return j
@@ -93,8 +99,8 @@ func (j *Jet) receive() {
 	for {
 		select {
 		// Up the value to all consumer and close all awaiter
-		case elem := <-j._upstream:
-			j.emit(elem)
+		case snapshot := <-j._upstream:
+			j.emit(snapshot)
 
 		// Register a consumer and unregister one
 		case channel := <-j._register:
@@ -108,28 +114,26 @@ func (j *Jet) receive() {
 
 		// Single value consumer
 		case await := <-j._await:
-			j.waiters[await] = true
+			j.waiters[await] = await
 
-		case stop := <-j._stop:
-			j.isDone = stop
-			if stop {
-				j.shutdown()
-				return
-			}
+		case _ = <-j._acid:
+			j.isDone = true
+			j.shutdown()
+			return
 		}
 	}
 }
 
 // emit dispatch all the element to all downstream and waiters
-func (j *Jet) emit(elem interface{}) {
-	j.cache = elem
+func (j *Jet) emit(snapshot Any) {
+	j.latestSnapshot = snapshot
 	for _, producer := range j.downstream {
-		producer <- elem
+		producer <- snapshot
 	}
-	for awaiter := range j.waiters {
-		awaiter <- elem
-		close(awaiter)
-		delete(j.waiters, awaiter)
+	for awaitConsumer, awaitProducer := range j.waiters {
+		awaitProducer <- snapshot
+		close(awaitProducer)
+		delete(j.waiters, awaitConsumer)
 	}
 }
 
@@ -139,19 +143,19 @@ func (j *Jet) shutdown() {
 		close(producer)
 		delete(j.downstream, consumer)
 	}
-	for awaiter := range j.waiters {
-		awaiter <- j.cache
-		close(awaiter)
-		delete(j.waiters, awaiter)
+	for awaitConsumer, awaitProducer := range j.waiters {
+		awaitProducer <- j.latestSnapshot
+		close(awaitProducer)
+		delete(j.waiters, awaitConsumer)
 	}
 	close(j._await)
 	close(j._register)
 	close(j._unregister)
-	close(j._stop)
+	close(j._acid)
 }
 
 // Up pushes a new value into the Jet
-func (j *Jet) Up(data interface{}) {
+func (j *Jet) Up(data Any) {
 	if j.isDone {
 		return
 	}
@@ -165,13 +169,13 @@ func (j *Jet) Close() {
 		return
 	}
 
-	j._stop <- true
+	j._acid <- Signal{}
 	defer close(j._upstream)
 }
 
 // Sink registers a consumer channel and return it
-func (j *Jet) Sink() Consumer {
-	consumer := make(chan interface{})
+func (j *Jet) Sink() common.Consumer {
+	consumer := make(chan Any)
 
 	if j.isDone {
 		defer close(consumer)
@@ -182,8 +186,8 @@ func (j *Jet) Sink() Consumer {
 	return consumer
 }
 
-// Unsink unregisters a consumer channel and return an error
-func (j *Jet) Unsink(ch Consumer) error {
+// Detach unregisters a consumer channel and return an error
+func (j *Jet) Detach(ch common.Consumer) error {
 	if j.isDone {
 		return errors.New("jet 'Unlink': Jet has finished or been shutdown forcefully")
 	}
@@ -191,50 +195,78 @@ func (j *Jet) Unsink(ch Consumer) error {
 	return nil
 }
 
-// OnSnapshot register sink and iterate over it and call the callback
-func (j *Jet) OnSnapshot(callback func(interface{})) (<-chan bool, func()) {
-	ch := make(chan interface{})
-	done := make(chan bool)
+// Snapshots register a consumer channel and unregister on finished context
+func (j *Jet) Snapshots(ctx context.Context) <-chan Any {
+	sink := j.Sink()
+	go func() {
+		<-ctx.Done()
+		_ = j.Detach(sink)
+	}()
+	return sink
+}
 
-	if j.isDone {
-		defer close(ch)
-	} else {
-		j._register <- ch
-	}
+// OnSnapshot register a sink and iterator over it with a callback until the provided context finishes
+func (j *Jet) OnSnapshot(ctx context.Context, callback func(snapshot Any)) <-chan Signal {
+	ch := j.Snapshots(ctx)
+	done := make(chan Signal)
 
 	go func() {
-		for elem := range ch {
-			callback(elem)
+		for snapshot := range ch {
+			callback(snapshot)
 		}
-		done <- true
+		done <- Signal{}
+	}()
+
+	return done
+}
+
+// On register sink and iterate over it and call the callback
+func (j *Jet) On(callback func(Any)) (<-chan Signal, func()) {
+	ch := j.Sink()
+	done := make(chan Signal)
+
+	go func() {
+		for snapshot := range ch {
+			callback(snapshot)
+		}
+		done <- Signal{}
 	}()
 
 	return done, func() {
-		if j.isDone {
-			return
+		if err := j.Detach(ch); err != nil {
+			log.Println(err.Error())
 		}
-		j._unregister <- ch
 	}
 }
 
-// Await is method for waiting for the next value in the Jet otherwise use the cache
-func (j *Jet) Await() interface{} {
+// Await is method for waiting for the next value in the Jet otherwise use the latestSnapshot
+func (j *Jet) Await() Any {
 	res := j.AwaitNoCache()
-	if res != nil {
-		return j.cache
+	if res == nil {
+		return j.latestSnapshot
 	}
 	return res
 }
 
-// AwaitNoCache is a method for waiting for the next value in the Jet but doesn't use the cache
-func (j *Jet) AwaitNoCache() interface{} {
+// AwaitNoCache is a method for waiting for the next value in the Jet but doesn't use the latestSnapshot
+func (j *Jet) AwaitNoCache() Any {
 	if j.isDone {
 		return nil
 	}
 
-	await := make(chan interface{})
+	await := make(chan Any)
 	j._await <- await
 	return <-await
+}
+
+func (j *Jet) Done() <-chan Signal {
+	done := make(chan Signal)
+	go func() {
+		for !j.isDone {
+		}
+		done <- Signal{}
+	}()
+	return done
 }
 
 // --- Iterator ---
@@ -248,11 +280,11 @@ func (j *Jet) Next() bool {
 // Value return the current value in the iteration
 //
 // Note: To get next value, call Next method
-func (j *Jet) Value() interface{} {
-	return j.cache
+func (j *Jet) Value() Any {
+	return j.latestSnapshot
 }
 
 // Err return the accumulated error from the Jet iterator
 func (j *Jet) Err() error {
-	return j.err
+	return j.accumulatedError
 }

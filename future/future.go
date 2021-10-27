@@ -11,6 +11,7 @@ package future
 import (
 	"errors"
 	"github.com/d-exclaimation/gocurrent/result"
+	. "github.com/d-exclaimation/gocurrent/types"
 )
 
 // Future is a data structure to represent suspended / deferred value
@@ -36,14 +37,8 @@ type Future struct {
 	// Status is a value showing the status of the execution
 	Status DeliveryStatus
 
-	// awaiter is a store of other channels waiting for the finish of the execution
-	awaiter map[chan bool]bool
-
 	// _Delivery is a channel for the executor to send the finished result
 	_Delivery chan result.Result
-
-	// _Awaiter is a channel to register a new waiting channel in awaiter
-	_Awaiter chan chan bool
 }
 
 // Async instantiate a new Future and run the function in a separate goroutine.
@@ -53,8 +48,6 @@ func Async(exe Function) *Future {
 		err:       nil,
 		executor:  exe,
 		Status:    Idle,
-		awaiter:   make(map[chan bool]bool),
-		_Awaiter:  make(chan chan bool),
 		_Delivery: make(chan result.Result),
 	}
 	fut.Reload()
@@ -68,8 +61,6 @@ func New(exe Function) *Future {
 		err:       nil,
 		executor:  exe,
 		Status:    Idle,
-		awaiter:   make(map[chan bool]bool),
-		_Awaiter:  make(chan chan bool),
 		_Delivery: make(chan result.Result),
 	}
 }
@@ -92,47 +83,27 @@ func (f *Future) run() {
 
 // behavior execute the receiver on a separate goroutine.
 func (f *Future) behavior() {
-	go f.receive()
-}
-
-// receive create an actor-like behavior
-// to concurrent-safely queue-in  messages from the channels
-func (f *Future) receive() {
-	for {
-		select {
-		case res := <-f._Delivery:
-			res.Match(result.Case{
-				Success: func(value interface{}) {
-					f.value = value
-					f.Status = Success
-				},
-				Failure: func(err error) {
-					f.err = err
-					f.Status = Failure
-				},
-			})
-
-			// Notify waiters
-			for ch := range f.awaiter {
-				ch <- true
-			}
-			return
-		case ch := <-f._Awaiter:
-			f.awaiter[ch] = true
-		}
-	}
+	go func() {
+		res := <-f._Delivery
+		res.Match(result.Case{
+			Success: func(value Any) {
+				f.value = value
+				f.Status = Success
+			},
+			Failure: func(err error) {
+				f.err = err
+				f.Status = Failure
+			},
+		})
+		close(f._Delivery)
+	}()
 }
 
 // Await waits for the Future to finish and return the values
 //
 // Note: Blocking operation!
 func (f *Future) Await() (Any, error) {
-	if !f.IsDone() {
-		await := make(chan bool)
-		f._Awaiter <- await
-		<-await
-		close(await)
-	}
+	<-f.Done()
 	return f.Get()
 }
 
@@ -158,6 +129,16 @@ func (f *Future) IsSuccess() bool {
 // IsDone indicate whether the Future has completed
 func (f *Future) IsDone() bool {
 	return f.Status == Success || f.Status == Failure
+}
+
+func (f *Future) Done() <-chan struct{} {
+	await := make(chan struct{})
+	go func() {
+		for !f.IsDone() {
+		}
+		await <- struct{}{}
+	}()
+	return await
 }
 
 // Channel convert the result into a single consumer-only channel

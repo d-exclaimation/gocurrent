@@ -8,12 +8,14 @@
 
 package result
 
-import "github.com/d-exclaimation/gocurrent/future"
+import (
+	. "github.com/d-exclaimation/gocurrent/types"
+)
 
 // Result is a data structure representing a data, error pair
 type Result struct {
 	// Value is the inner value of the result
-	Value interface{}
+	Value Any
 
 	// Err is the inner error of the result
 	Err error
@@ -29,12 +31,12 @@ func (r *Result) Match(cases Case) {
 }
 
 // Get return the inner values as tuples
-func (r *Result) Get() (interface{}, error) {
+func (r *Result) Get() (Any, error) {
 	return r.Value, r.Err
 }
 
 // Recover catch the error and transform it to the successful value
-func (r *Result) Recover(fallback func(error) interface{}) interface{} {
+func (r *Result) Recover(fallback func(error) Any) Any {
 	if r.Err != nil {
 		return fallback(r.Err)
 	}
@@ -47,7 +49,7 @@ func (r *Result) IsSuccess() bool {
 }
 
 // New instantiate a new Result
-func New(data interface{}, err error) Result {
+func New(data Any, err error) Result {
 	return Result{
 		Value: data,
 		Err:   err,
@@ -55,14 +57,8 @@ func New(data interface{}, err error) Result {
 }
 
 // From convert a go's standard throwable function return value into a Result
-func From(run func() (interface{}, error)) Result {
+func From(run func() (Any, error)) Result {
 	data, err := run()
 	return New(data, err)
 }
 
-// Await awaits and converts a Future return value into a Result
-func Await(fut *future.Future) Result {
-	return From(func() (interface{}, error) {
-		return fut.Await()
-	})
-}

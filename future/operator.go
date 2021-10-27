@@ -11,6 +11,7 @@ package future
 import (
 	"errors"
 	"github.com/d-exclaimation/gocurrent/result"
+	. "github.com/d-exclaimation/gocurrent/types"
 )
 
 // Map is an operator for mapping the inner successful value of the Future

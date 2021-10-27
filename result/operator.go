@@ -8,10 +8,13 @@
 
 package result
 
-import "errors"
+import (
+	"errors"
+	. "github.com/d-exclaimation/gocurrent/types"
+)
 
 // Map is an operator for mapping the inner successful value of the Result
-func Map(r Result, mapper func(interface{}) interface{}) Result {
+func Map(r Result, mapper func(Any) Any) Result {
 	data, err := r.Get()
 	if err != nil {
 		return New(nil, err)
@@ -20,7 +23,7 @@ func Map(r Result, mapper func(interface{}) interface{}) Result {
 }
 
 // FlatMap is an operator for mapping the inner value to another Result
-func FlatMap(r Result, mapper func(interface{}) Result) Result {
+func FlatMap(r Result, mapper func(Any) Result) Result {
 	data, err := r.Get()
 	if err != nil {
 		return New(nil, err)
@@ -29,7 +32,7 @@ func FlatMap(r Result, mapper func(interface{}) Result) Result {
 }
 
 // ForEach is an operator for call a callback on the inner value
-func ForEach(r Result, callback func(interface{})) {
+func ForEach(r Result, callback func(Any)) {
 	data, err := r.Get()
 	if err != nil {
 		return
@@ -38,7 +41,7 @@ func ForEach(r Result, callback func(interface{})) {
 }
 
 // Filter is an operator for filter the inner value
-func Filter(r Result, predicate func(interface{}) bool) Result {
+func Filter(r Result, predicate func(Any) bool) Result {
 	data, err := r.Get()
 	if err != nil {
 		return New(nil, err)
