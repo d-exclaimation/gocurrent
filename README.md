@@ -10,22 +10,23 @@ package main
 import (
     "github.com/d-exclaimation/gocurrent/future"
     "github.com/d-exclaimation/gocurrent/result"
+    . "github.com/d-exclaimation/gocurrent/types"
     "log"
     "time"
 )
 
 func main() {
-    fut0 := future.Async(func() (future.Any, error) {
+    fut0 := future.Async(func() (Any, error) {
         time.Sleep(10 * time.Second)
         return 10, nil
     })
 
-    fut1 := future.Map(fut0, func(any future.Any) future.Any {
+    fut1 := future.Map(fut0, func(any Any) Any {
         return any.(int) + 2
     })
 
     future.OnComplete(fut1, result.Case{
-        Success: func(i interface{}) {
+        Success: func(i Any) {
             log.Println(i)
         },
         Failure: func(err error) {
@@ -47,13 +48,14 @@ package main
 
 import (
     "github.com/d-exclaimation/gocurrent/streaming/jet"
+    . "github.com/d-exclaimation/gocurrent/types"
     "log"
 )
 
 func main() {
     jt := jet.New()
 
-    jt.OnSnapshot(func(i interface{}) {
+    jt.On(func(i Any) {
         log.Printf("[1]: %v, ", i)
     })
 
