@@ -72,21 +72,8 @@ type Jet struct {
 }
 
 // New instantiate a new Jet and run the behavior in a separate goroutine.
-func New() *Jet {
-	j := &Jet{
-		_upstream:        make(chan Any),
-		_register:        make(chan chan Any),
-		_unregister:      make(chan streaming.Consumer),
-		_await:           make(chan chan Any),
-		_acid:            make(chan Signal),
-		latestSnapshot:   nil,
-		accumulatedError: nil,
-		downstream:       make(streaming.Downstreams),
-		waiters:          make(streaming.Downstreams),
-		isDone:           false,
-	}
-	j.behavior()
-	return j
+func New(opts ...Option) *Jet {
+	return Lazy(opts...)()
 }
 
 // behavior is a method for running the receiver
@@ -99,13 +86,22 @@ func (j *Jet) receive() {
 	for {
 		select {
 		// Up the value to all consumer and close all awaiter
-		case snapshot := <-j._upstream:
+		case snapshot, valid := <-j._upstream:
+			if !valid {
+				continue
+			}
 			j.emit(snapshot)
 
 		// Register a consumer and unregister one
-		case channel := <-j._register:
+		case channel, valid := <-j._register:
+			if !valid {
+				continue
+			}
 			j.downstream[channel] = channel
-		case consumer := <-j._unregister:
+		case consumer, valid := <-j._unregister:
+			if !valid {
+				continue
+			}
 			producer, ok := j.downstream[consumer]
 			if ok {
 				close(producer)
@@ -113,10 +109,16 @@ func (j *Jet) receive() {
 			}
 
 		// Single value consumer
-		case await := <-j._await:
+		case await, valid := <-j._await:
+			if !valid {
+				continue
+			}
 			j.waiters[await] = await
 
-		case _ = <-j._acid:
+		case _, valid := <-j._acid:
+			if !valid {
+				continue
+			}
 			j.isDone = true
 			j.shutdown()
 			return
@@ -152,6 +154,7 @@ func (j *Jet) shutdown() {
 	close(j._register)
 	close(j._unregister)
 	close(j._acid)
+	close(j._upstream)
 }
 
 // Up pushes a new value into the Jet
@@ -169,8 +172,9 @@ func (j *Jet) Close() {
 		return
 	}
 
-	j._acid <- Signal{}
-	defer close(j._upstream)
+	go late(func() {
+		j._acid <- Signal{}
+	})
 }
 
 // Sink registers a consumer channel and return it

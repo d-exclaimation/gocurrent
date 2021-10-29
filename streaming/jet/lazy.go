@@ -17,32 +17,51 @@ import (
 type RunnableJet func() *Jet
 
 // Lazy setups a function to run a Jet stream
-func Lazy() RunnableJet {
+func Lazy(opts ...Option) RunnableJet {
+	var (
+		upstream   = make(chan Any, 2)
+		register   = make(chan chan Any)
+		unregister = make(chan streaming.Consumer)
+		acid       = make(chan Signal)
+	)
+
+	// Setup for optional fields and configuration
+	for _, opt := range opts {
+		switch opt.(type) {
+		case bufferedAll:
+			buffer := opt.(bufferedAll)
+			upstream = make(chan Any, buffer)
+			register = make(chan chan Any, buffer)
+			unregister = make(chan streaming.Consumer, buffer)
+			acid = make(chan Signal, buffer)
+		case upstreamBuffered:
+			buffer := opt.(upstreamBuffered)
+			upstream = make(chan Any, buffer)
+			acid = make(chan Signal, buffer)
+		case downstreamBuffered:
+			buffer := opt.(downstreamBuffered)
+			register = make(chan chan Any, buffer)
+			unregister = make(chan streaming.Consumer, buffer)
+			acid = make(chan Signal, buffer)
+		default:
+			upstream = make(chan Any)
+			register = make(chan chan Any)
+			unregister = make(chan streaming.Consumer)
+			acid = make(chan Signal)
+		}
+	}
+
 	jt := &Jet{
-		_upstream:        make(chan Any),
-		_register:        make(chan chan Any),
-		_unregister:      make(chan streaming.Consumer),
-		_await:           make(chan chan Any),
-		_acid:            make(chan Signal),
-		latestSnapshot:   nil,
-		accumulatedError: nil,
-		downstream:       make(streaming.Downstreams),
-		waiters:          make(streaming.Downstreams),
-		isDone:           false,
+		_upstream:   upstream,
+		_register:   register,
+		_unregister: unregister,
+		_await:      make(chan chan Any),
+		_acid:       acid,
+		downstream:  make(streaming.Downstreams),
+		waiters:     make(streaming.Downstreams),
 	}
 	return func() *Jet {
 		jt.behavior()
-		return jt
-	}
-}
-
-// LazyJust setups a function to run a Jet stream with a single value and closes
-func LazyJust(single func() interface{}) RunnableJet {
-	run := Lazy()
-	return func() *Jet {
-		jt := run()
-		jt.Up(single())
-		jt.Close()
 		return jt
 	}
 }

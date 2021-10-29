@@ -15,8 +15,8 @@ import (
 )
 
 // From instantiate a new Jet stream from a channel
-func From(ch <-chan Any) *Jet {
-	jt := New()
+func From(ch <-chan Any, opts ...Option) *Jet {
+	jt := New(opts...)
 	bridge := make(chan Any)
 	acid := make(chan struct{})
 
@@ -50,45 +50,33 @@ func From(ch <-chan Any) *Jet {
 	return jt
 }
 
-// Just instantiate a Jet stream with only a single value then closes
-func Just(single Any) *Jet {
-	jt := New()
-	go func() {
-		jt.Up(single)
-		defer jt.Close()
-	}()
-	return jt
-}
-
-// Of instantiate a Jet stream with all the provided values then closes
-func Of(multi ...Any) *Jet {
-	jt := New()
-	go func() {
-		for _, each := range multi {
-			jt.Up(each)
-		}
-		defer jt.Close()
-	}()
-	return jt
-}
-
 // Empty instantiate a Jet stream that push no value and closes
 func Empty() *Jet {
 	jt := New()
-	jt.Close()
+	defer jt.Close()
 	return jt
 }
 
 // Future instantiate a Jet stream with a value after future completed and closes
-func Future(fut *future.Future) *Jet {
-	jt := New()
-	go func() {
+func Future(fut *future.Future, opts ...Option) *Jet {
+	jt := New(opts...)
+	defer task(func() {
 		data, err := fut.Await()
 		if err == nil {
 			jt.Up(data)
 		}
-		time.Sleep(time.Millisecond * 200)
-		jt.Close()
-	}()
+		defer jt.Close()
+	})
 	return jt
+}
+
+// task allocate function late-ly to a new goroutine
+func task(fn func()) {
+	go late(fn)
+}
+
+// late call a function lately
+func late(fn func()) {
+	time.Sleep(10 * time.Millisecond)
+	fn()
 }
