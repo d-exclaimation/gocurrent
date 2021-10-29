@@ -40,20 +40,20 @@ import (
 // Also handle single recent value request with caching and provide method like Await and AwaitNoCache.
 // Also handle closing all channels and deallocating resources.
 type Jet struct {
-	// _upstream is the upstream channel to push data into the Jet
-	_upstream chan Any
+	// upstream is the upstream channel to push data into the Jet
+	upstream chan Any
 
-	// _register is the channel to concurrently set a new consumer channel
-	_register chan chan Any
+	// registrar is the channel to concurrently set a new consumer channel
+	registrar chan chan Any
 
-	// _unregister is the channel to concurrently unset and close a consumer channel
-	_unregister chan streaming.Consumer
+	// unregistrar is the channel to concurrently unset and close a consumer channel
+	unregistrar chan streaming.Consumer
 
-	// _await is the channel for sending single use channel
-	_await chan chan Any
+	// awaiter is the channel for sending single use channel
+	awaiter chan chan Any
 
-	// _acid is the shutdown channel
-	_acid chan Signal
+	// acid is the shutdown channel
+	acid chan Signal
 
 	// latestSnapshot is the preserved latest value
 	latestSnapshot Any
@@ -86,19 +86,19 @@ func (j *Jet) receive() {
 	for {
 		select {
 		// Up the value to all consumer and close all awaiter
-		case snapshot, valid := <-j._upstream:
+		case snapshot, valid := <-j.upstream:
 			if !valid {
 				continue
 			}
 			j.emit(snapshot)
 
 		// Register a consumer and unregister one
-		case channel, valid := <-j._register:
+		case channel, valid := <-j.registrar:
 			if !valid {
 				continue
 			}
 			j.downstream[channel] = channel
-		case consumer, valid := <-j._unregister:
+		case consumer, valid := <-j.unregistrar:
 			if !valid {
 				continue
 			}
@@ -109,13 +109,13 @@ func (j *Jet) receive() {
 			}
 
 		// Single value consumer
-		case await, valid := <-j._await:
+		case await, valid := <-j.awaiter:
 			if !valid {
 				continue
 			}
 			j.waiters[await] = await
 
-		case _, valid := <-j._acid:
+		case _, valid := <-j.acid:
 			if !valid {
 				continue
 			}
@@ -150,11 +150,11 @@ func (j *Jet) shutdown() {
 		close(awaitProducer)
 		delete(j.waiters, awaitConsumer)
 	}
-	close(j._await)
-	close(j._register)
-	close(j._unregister)
-	close(j._acid)
-	close(j._upstream)
+	close(j.awaiter)
+	close(j.registrar)
+	close(j.unregistrar)
+	close(j.acid)
+	close(j.upstream)
 }
 
 // Up pushes a new value into the Jet
@@ -163,7 +163,7 @@ func (j *Jet) Up(data Any) {
 		return
 	}
 
-	j._upstream <- data
+	j.upstream <- data
 }
 
 // Close shutdown the entire Jet and all downstream from Sink
@@ -173,7 +173,7 @@ func (j *Jet) Close() {
 	}
 
 	go late(func() {
-		j._acid <- Signal{}
+		j.acid <- Signal{}
 	})
 }
 
@@ -184,7 +184,7 @@ func (j *Jet) Sink() streaming.Consumer {
 	if j.isDone {
 		defer close(consumer)
 	} else {
-		j._register <- consumer
+		j.registrar <- consumer
 	}
 
 	return consumer
@@ -195,7 +195,7 @@ func (j *Jet) Detach(ch streaming.Consumer) error {
 	if j.isDone {
 		return errors.New("jet 'Unlink': Jet has finished or been shutdown forcefully")
 	}
-	j._unregister <- ch
+	j.unregistrar <- ch
 	return nil
 }
 
@@ -259,7 +259,7 @@ func (j *Jet) AwaitNoCache() Any {
 	}
 
 	await := make(chan Any)
-	j._await <- await
+	j.awaiter <- await
 	return <-await
 }
 

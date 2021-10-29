@@ -37,18 +37,18 @@ type Future struct {
 	// Status is a value showing the status of the execution
 	Status DeliveryStatus
 
-	// _Delivery is a channel for the executor to send the finished result
-	_Delivery chan result.Result
+	// delivery is a channel for the executor to send the finished result
+	delivery chan result.Result
 }
 
 // Async instantiate a new Future and run the function in a separate goroutine.
 func Async(exe Function) *Future {
 	fut := &Future{
-		value:     nil,
-		err:       nil,
-		executor:  exe,
-		Status:    Idle,
-		_Delivery: make(chan result.Result),
+		value:    nil,
+		err:      nil,
+		executor: exe,
+		Status:   Idle,
+		delivery: make(chan result.Result),
 	}
 	fut.Reload()
 	return fut
@@ -57,11 +57,11 @@ func Async(exe Function) *Future {
 // New instantiate a new Future but does not run the function.
 func New(exe Function) *Future {
 	return &Future{
-		value:     nil,
-		err:       nil,
-		executor:  exe,
-		Status:    Idle,
-		_Delivery: make(chan result.Result),
+		value:    nil,
+		err:      nil,
+		executor: exe,
+		Status:   Idle,
+		delivery: make(chan result.Result),
 	}
 }
 
@@ -77,14 +77,14 @@ func (f *Future) run() {
 	f.Status = Loading
 	go func() {
 		data, err := f.executor()
-		f._Delivery <- result.New(data, err)
+		f.delivery <- result.New(data, err)
 	}()
 }
 
 // behavior execute the receiver on a separate goroutine.
 func (f *Future) behavior() {
 	go func() {
-		res, ok := <-f._Delivery
+		res, ok := <-f.delivery
 		if !ok {
 			res = result.Result{Err: errors.New("future 'Delivery': Delivery channel for task was unexpectedly closed")}
 		}
@@ -98,7 +98,7 @@ func (f *Future) behavior() {
 				f.Status = Failure
 			},
 		})
-		close(f._Delivery)
+		close(f.delivery)
 	}()
 }
 

@@ -52,11 +52,11 @@ func Lazy(opts ...Option) RunnableJet {
 	}
 
 	jt := &Jet{
-		_upstream:   upstream,
-		_register:   register,
-		_unregister: unregister,
-		_await:      make(chan chan Any),
-		_acid:       acid,
+		upstream:    upstream,
+		registrar:   register,
+		unregistrar: unregister,
+		awaiter:     make(chan chan Any),
+		acid:        acid,
 		downstream:  make(streaming.Downstreams),
 		waiters:     make(streaming.Downstreams),
 	}
