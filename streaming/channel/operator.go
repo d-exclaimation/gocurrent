@@ -14,6 +14,7 @@ import (
 	. "github.com/d-exclaimation/gocurrent/types"
 )
 
+// Map adds a pipeline function on to the channel result
 func Map(ch streaming.Consumer, mapper func(interface{}) interface{}) streaming.Consumer {
 	channel := make(chan Any)
 	go func() {
@@ -24,7 +25,8 @@ func Map(ch streaming.Consumer, mapper func(interface{}) interface{}) streaming.
 	return channel
 }
 
-func Solicit(ch streaming.Consumer, ctx context.Context) streaming.Consumer {
+// ApplyContext applies all the necessary setup with the context for closing and receiving data in channel
+func ApplyContext(ch streaming.Consumer, ctx context.Context) streaming.Consumer {
 	outgoing := make(chan Any)
 	bridge := make(chan interface{})
 	acid := make(chan struct{})
@@ -40,6 +42,7 @@ func Solicit(ch streaming.Consumer, ctx context.Context) streaming.Consumer {
 			case incoming := <-bridge:
 				outgoing <- incoming
 			case _ = <-acid:
+				close(outgoing)
 				return
 			}
 		}

@@ -84,7 +84,10 @@ func (f *Future) run() {
 // behavior execute the receiver on a separate goroutine.
 func (f *Future) behavior() {
 	go func() {
-		res := <-f._Delivery
+		res, ok := <-f._Delivery
+		if !ok {
+			res = result.Result{Err: errors.New("future 'Delivery': Delivery channel for task was unexpectedly closed")}
+		}
 		res.Match(result.Case{
 			Success: func(value Any) {
 				f.value = value
