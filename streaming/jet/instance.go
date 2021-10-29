@@ -41,6 +41,7 @@ func From(ch <-chan Any) *Jet {
 			case incoming := <-bridge:
 				jt.Up(incoming)
 			case _ = <-acid:
+				jt.Close()
 				return
 			}
 		}

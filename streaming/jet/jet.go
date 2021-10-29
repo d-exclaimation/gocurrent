@@ -11,7 +11,7 @@ package jet
 import (
 	"context"
 	"errors"
-	"github.com/d-exclaimation/gocurrent/streaming/common"
+	"github.com/d-exclaimation/gocurrent/streaming"
 	. "github.com/d-exclaimation/gocurrent/types"
 	"log"
 )
@@ -47,7 +47,7 @@ type Jet struct {
 	_register chan chan Any
 
 	// _unregister is the channel to concurrently unset and close a consumer channel
-	_unregister chan common.Consumer
+	_unregister chan streaming.Consumer
 
 	// _await is the channel for sending single use channel
 	_await chan chan Any
@@ -62,10 +62,10 @@ type Jet struct {
 	accumulatedError error
 
 	// downstream is the map state for store long-running consumer to producer channel pair
-	downstream common.Downstreams
+	downstream streaming.Downstreams
 
 	// waiters is the map state for store single use channel
-	waiters common.Downstreams
+	waiters streaming.Downstreams
 
 	// isDone is the state to indicate whether Jet finished
 	isDone bool
@@ -76,13 +76,13 @@ func New() *Jet {
 	j := &Jet{
 		_upstream:        make(chan Any),
 		_register:        make(chan chan Any),
-		_unregister:      make(chan common.Consumer),
+		_unregister:      make(chan streaming.Consumer),
 		_await:           make(chan chan Any),
 		_acid:            make(chan Signal),
 		latestSnapshot:   nil,
 		accumulatedError: nil,
-		downstream:       make(common.Downstreams),
-		waiters:          make(common.Downstreams),
+		downstream:       make(streaming.Downstreams),
+		waiters:          make(streaming.Downstreams),
 		isDone:           false,
 	}
 	j.behavior()
@@ -174,7 +174,7 @@ func (j *Jet) Close() {
 }
 
 // Sink registers a consumer channel and return it
-func (j *Jet) Sink() common.Consumer {
+func (j *Jet) Sink() streaming.Consumer {
 	consumer := make(chan Any)
 
 	if j.isDone {
@@ -187,7 +187,7 @@ func (j *Jet) Sink() common.Consumer {
 }
 
 // Detach unregisters a consumer channel and return an error
-func (j *Jet) Detach(ch common.Consumer) error {
+func (j *Jet) Detach(ch streaming.Consumer) error {
 	if j.isDone {
 		return errors.New("jet 'Unlink': Jet has finished or been shutdown forcefully")
 	}

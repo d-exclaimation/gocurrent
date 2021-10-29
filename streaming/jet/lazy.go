@@ -10,7 +10,7 @@ package jet
 
 import (
 	"github.com/d-exclaimation/gocurrent/future"
-	"github.com/d-exclaimation/gocurrent/streaming/common"
+	"github.com/d-exclaimation/gocurrent/streaming"
 	. "github.com/d-exclaimation/gocurrent/types"
 )
 
@@ -21,13 +21,13 @@ func Lazy() RunnableJet {
 	jt := &Jet{
 		_upstream:        make(chan Any),
 		_register:        make(chan chan Any),
-		_unregister:      make(chan common.Consumer),
+		_unregister:      make(chan streaming.Consumer),
 		_await:           make(chan chan Any),
 		_acid:            make(chan Signal),
 		latestSnapshot:   nil,
 		accumulatedError: nil,
-		downstream:       make(common.Downstreams),
-		waiters:          make(common.Downstreams),
+		downstream:       make(streaming.Downstreams),
+		waiters:          make(streaming.Downstreams),
 		isDone:           false,
 	}
 	return func() *Jet {

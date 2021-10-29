@@ -10,11 +10,11 @@ package channel
 
 import (
 	"context"
-	"github.com/d-exclaimation/gocurrent/streaming/common"
+	"github.com/d-exclaimation/gocurrent/streaming"
 	. "github.com/d-exclaimation/gocurrent/types"
 )
 
-func Map(ch common.Consumer, mapper func(interface{}) interface{}) common.Consumer {
+func Map(ch streaming.Consumer, mapper func(interface{}) interface{}) streaming.Consumer {
 	channel := make(chan Any)
 	go func() {
 		for incoming := range ch {
@@ -24,7 +24,7 @@ func Map(ch common.Consumer, mapper func(interface{}) interface{}) common.Consum
 	return channel
 }
 
-func Solicit(ch common.Consumer, ctx context.Context) common.Consumer {
+func Solicit(ch streaming.Consumer, ctx context.Context) streaming.Consumer {
 	outgoing := make(chan Any)
 	bridge := make(chan interface{})
 	acid := make(chan struct{})

@@ -6,7 +6,7 @@
 //  Copyright © 2021 d-exclaimation. All rights reserved.
 //
 
-package common
+package streaming
 
 import . "github.com/d-exclaimation/gocurrent/types"
 
