@@ -209,7 +209,7 @@ func (j *Jet) Snapshots(ctx context.Context) <-chan Any {
 	return sink
 }
 
-// OnSnapshot register a sink and iterator over it with a callback until the provided context finishes
+// OnSnapshot register a pipe and iterator over it with a callback until the provided context finishes
 func (j *Jet) OnSnapshot(ctx context.Context, callback func(snapshot Any)) <-chan Signal {
 	ch := j.Snapshots(ctx)
 	done := make(chan Signal)
@@ -224,7 +224,7 @@ func (j *Jet) OnSnapshot(ctx context.Context, callback func(snapshot Any)) <-cha
 	return done
 }
 
-// On register sink and iterate over it and call the callback
+// On register pipe and iterate over it and call the callback
 func (j *Jet) On(callback func(Any)) (<-chan Signal, func()) {
 	ch := j.Sink()
 	done := make(chan Signal)
