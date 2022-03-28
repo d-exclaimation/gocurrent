@@ -9,8 +9,8 @@
 package jet
 
 import (
-	"github.com/d-exclaimation/gocurrent/future"
 	"github.com/d-exclaimation/gocurrent/streaming"
+	"github.com/d-exclaimation/gocurrent/task"
 	. "github.com/d-exclaimation/gocurrent/types"
 )
 
@@ -67,7 +67,7 @@ func Lazy(opts ...Option) RunnableJet {
 }
 
 // LazyFuture setups a function to run a Jet stream with a value after future completed and closes
-func LazyFuture(fut func() *future.Future) RunnableJet {
+func LazyFuture(fut func() *task.Task[Any]) RunnableJet {
 	run := Lazy()
 	return func() *Jet {
 		jt := run()

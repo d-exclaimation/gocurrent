@@ -9,7 +9,7 @@
 package jet
 
 import (
-	"github.com/d-exclaimation/gocurrent/future"
+	"github.com/d-exclaimation/gocurrent/task"
 	. "github.com/d-exclaimation/gocurrent/types"
 	"time"
 )
@@ -58,9 +58,9 @@ func Empty() *Jet {
 }
 
 // Future instantiate a Jet stream with a value after future completed and closes
-func Future(fut *future.Future, opts ...Option) *Jet {
+func Future(fut *task.Task[Any], opts ...Option) *Jet {
 	jt := New(opts...)
-	defer task(func() {
+	defer routine(func() {
 		data, err := fut.Await()
 		if err == nil {
 			jt.Up(data)
@@ -70,8 +70,8 @@ func Future(fut *future.Future, opts ...Option) *Jet {
 	return jt
 }
 
-// task allocate function late-ly to a new goroutine
-func task(fn func()) {
+// routine allocate function late-ly to a new goroutine
+func routine(fn func()) {
 	go late(fn)
 }
 

@@ -9,14 +9,14 @@
 package pipe
 
 import (
-	"github.com/d-exclaimation/gocurrent/future"
 	"github.com/d-exclaimation/gocurrent/streaming/jet"
+	"github.com/d-exclaimation/gocurrent/task"
 	. "github.com/d-exclaimation/gocurrent/types"
 )
 
-func Seq(jt *jet.Jet) *future.Future {
+func Seq(jt *jet.Jet) *task.Task[Any] {
 	ch := jt.Sink()
-	return future.Async(func() (Any, error) {
+	return task.Async[Any](func() (Any, error) {
 		var seq []Any
 		for snapshot := range ch {
 			seq = append(seq, snapshot)
@@ -25,9 +25,9 @@ func Seq(jt *jet.Jet) *future.Future {
 	})
 }
 
-func Last(jt *jet.Jet) *future.Future {
+func Last(jt *jet.Jet) *task.Task[Any] {
 	ch := jt.Sink()
-	return future.Async(func() (Any, error) {
+	return task.Async[Any](func() (Any, error) {
 		var res Any
 		for snapshot := range ch {
 			res = snapshot
@@ -36,9 +36,9 @@ func Last(jt *jet.Jet) *future.Future {
 	})
 }
 
-func Reduce(jt *jet.Jet, reducer func(Any, Any) Any) *future.Future {
+func Reduce(jt *jet.Jet, reducer func(Any, Any) Any) *task.Task[Any] {
 	ch := jt.Sink()
-	return future.Async(func() (Any, error) {
+	return task.Async[Any](func() (Any, error) {
 		var res Any = nil
 		for snapshot := range ch {
 			if res == nil {
